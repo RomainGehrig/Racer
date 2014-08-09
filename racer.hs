@@ -2,15 +2,19 @@ import Data.List
 import Data.Maybe
 import Data.Char
 
-type Vec2D = (Int, Int)
+data Race = Race { startingVelocity :: Velocity 
+                 , circuit :: Circuit } deriving Show
 
-type Race = (Position, Velocity, Circuit) -- Starting Position & Velocity
+type Vec2D = (Int,Int)
 type Position = Vec2D
 type Velocity = Vec2D
 type Circuit = [[Tile]]
 type Tile = Char
 type Move = Vec2D
-type Player = (Vec2D, Tile)
+
+data Player = Player { position :: Vec2D
+                     , velocity :: Vec2D
+                     , representation :: Tile } deriving Show
 
 data TileType = Obstacle | Road deriving (Show, Eq) 
 -- data Move = NW | N | NE |
@@ -38,7 +42,7 @@ basicCircuit = ["------------",
                 "------------"]
 
 basicRace :: Race
-basicRace = ((1,1), (0,1), basicCircuit)
+basicRace = Race {startingVelocity=(0,1), circuit=basicCircuit}
 
 addVec :: Vec2D -> Vec2D -> Vec2D
 (x1,y1) `addVec` (x2,y2) = (x1+x2, y1+y2)
@@ -49,9 +53,9 @@ v1 `subVec` v2@(x,y) = addVec v1 (-x,-y)
 move :: Position -> Velocity -> Position
 move = addVec
 
-possiblePos :: Position -> Velocity -> [Position]
-possiblePos pos vel = [ addVec nextPos (dx,dy) | dy <- [-1..1], dx <- [-1..1]]
-    where nextPos = addVec pos vel
+possiblePos :: Player -> [Position]
+possiblePos p = [ addVec nextPos (dx,dy) | dy <- [-1..1], dx <- [-1..1] ]
+    where nextPos = addVec (position p) (velocity p)
 
 validPos :: Circuit -> Position -> Bool
 validPos c pos = (getTileType $ getTile c pos) == Road
@@ -65,7 +69,7 @@ validPos c pos = (getTileType $ getTile c pos) == Road
 --     where nextPos = addVec vel pos
 
 solveRace :: Race -> Maybe [Move]
-solveRace r@(p, v, c) = Nothing
+solveRace r = Nothing
 
 circuitFind :: Circuit -> Tile -> Maybe Position
 circuitFind = (listToMaybe .) . circuitFinds
@@ -93,28 +97,45 @@ replaceCircuit' l@(x:xs) index tile
     | otherwise  =    x : (replaceCircuit' xs (index-1) tile)
 
 showPlayer :: Circuit -> Player -> Circuit
-showPlayer c p@(pos,t) = replaceCircuit c pos t
+showPlayer c p = replaceCircuit c (position p) (representation p)
 
 showMoves :: Circuit -> [Position] -> Circuit
-showMoves c poss = displayTiles c tiles
-    where tiles = [(intToDigit n, pos) | (n, pos) <- zip [1..] poss, validPos c pos]
-          displayTiles c ts = foldl (\ c (t,pos) -> replaceCircuit c pos t) c ts
+showMoves c ps = displayNumberedTiles c (numberedTiles c ps)
+    where displayNumberedTiles c ts = foldl (\ c (n,pos) -> replaceCircuit c pos (intToDigit n)) c ts
 
-showPlayerTurn :: Circuit -> Player -> Velocity -> Circuit
-showPlayerTurn c p@(pos,_) v = showPlayer (showMoves c (possiblePos pos v)) p
+numberedTiles :: Circuit -> [Position] -> [(Int,Position)]
+numberedTiles c ps = [(n, pos) | (n, pos) <- zip [1..] ps, validPos c pos]
+
+showPlayerTurn :: Circuit -> Player -> Circuit
+showPlayerTurn c p = showPlayer (showMoves c (possiblePos p)) p
 
 main :: IO ()
 main = do
-    let players = ((1,1),'*'):[]
-    putStr $ displayRace basicCircuit players
+    let players = bp:[]
+    putStr $ displayRace bc players
+    putStr . printCircuit $ showPlayerTurn bc bp
 
-handlePlayerTurn :: Circuit -> Player -> Velocity -> Bool
-handlePlayerTurn c p v = do
-    pressedKey <- getChar
-    case safeDigitToInt pressedKey of
-        Just n -> putStrLn $ "Works "++(pressedKey:[])
-        Nothing -> putStrLn "WRONG"
+--    while (not . isRaceDone bc) handlePlayerTurn 
+
+while :: (a -> Bool) -> (a -> a) -> a -> a
+while p f x = go
+    where go = if (p x') then while p f x' else x
+          x' = f x
+
+handlePlayerTurn :: Circuit -> Player -> Char -> Either Player Player
+handlePlayerTurn c p key = case safeDigitToInt key of
+                               Nothing -> Left p -- The player doesn't change
+                               Just n -> case getMove n of 
+                                             Just m -> Right (movePlayerTo p m)
+                                             Nothing -> Left p -- can't move there
     where safeDigitToInt x = if x `elem` ['1'..'9'] then Just (digitToInt x) else Nothing
+          getMove n = case find ((==) n . fst) possibleMoves of
+                          Nothing -> Nothing
+                          Just (i,p) -> Just p
+          possibleMoves = numberedTiles c (possiblePos p)
+          
+movePlayerTo :: Player -> Velocity -> Player
+movePlayerTo p v = Player ((position p) `addVec` v) v (representation p)
 
 -- isRaceDone :: Circuit -> [Player] -> Maybe Bool
 -- isRaceDone c ps = circuitFind c 'e' >>= \ endPos ->  Just $ any (\ p@(pos,_) -> pos == endPos) ps
@@ -122,9 +143,9 @@ handlePlayerTurn c p v = do
 isRaceDone :: Circuit -> [Player] -> Bool
 isRaceDone c ps = case circuitFind c 'e' of
                      Nothing -> False
-                     Just endPos -> any (\ p@(pos,_) -> pos == endPos) ps
+                     Just endPos -> any (\ p -> (position p) == endPos) ps
 
 bp :: Player
-bp = ((1,1),'*')
+bp = (Player (1,1) (1,0) '*')
 bc :: Circuit
 bc = basicCircuit
