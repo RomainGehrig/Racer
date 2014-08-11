@@ -125,13 +125,14 @@ while p f x = go
 handlePlayerTurn :: Circuit -> Player -> Char -> Either Player Player
 handlePlayerTurn c p key = case safeDigitToInt key of
                                Nothing -> Left p -- The player doesn't change
-                               Just n -> case getMove n of 
+                               Just n -> case getMove' n of 
                                              Just m -> Right (movePlayerTo p m)
                                              Nothing -> Left p -- can't move there
     where safeDigitToInt x = if x `elem` ['1'..'9'] then Just (digitToInt x) else Nothing
           getMove n = case find ((==) n . fst) possibleMoves of
                           Nothing -> Nothing
                           Just (i,p) -> Just p
+          getMove' n = find ((==) n . fst) possibleMoves >>= Just . snd
           possibleMoves = numberedTiles c (possiblePos p)
           
 movePlayerTo :: Player -> Velocity -> Player
