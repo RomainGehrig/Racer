@@ -164,7 +164,7 @@ numberedTiles :: Circuit -> [Position] -> [(Int,Position)]
 numberedTiles c ps = [(n, pos) | (n, pos) <- zip [1..] ps, validPos c pos]
 
 showPlayerTurn :: Circuit -> Player -> Circuit
-showPlayerTurn c p = showPlayer (showMoves c (possiblePos p)) p
+showPlayerTurn c p = showMoves (showPlayer c p) (possiblePos p)
 
 -- raceList :: IO [FilePath]
 -- raceList = do
@@ -179,7 +179,7 @@ playerTurn c p ps
     | otherwise = do
                      putStr . printCircuit $  multReplaceCircuit (showPlayerTurn c p) (map position ps) (representation p)
                      k <- getChar
-                     system "clear"
+                     _ <- system "clear"
                      case handlePlayerTurn c p k of 
                         Left player -> playerTurn c oldPlayer (tail ps)
                         Right player -> playerTurn c player (player:ps)   
@@ -247,7 +247,6 @@ getCircuit file = do
         True -> fmap (Just . lines) (readFile file)
         False -> return Nothing
 
-
 main :: IO ()
 main = do
     hSetEcho stdin False
@@ -257,6 +256,7 @@ main = do
     circuits <- availableCircuits directory
     selectedCircuit <- selectFromList "What circuit would you want to race ?" circuits
     circuit <- getCircuit (directory </> selectedCircuit)
+    _ <- system "clear"
     case circuit of
         Just c -> playCircuit c
         Nothing -> putStrLn "Error reading the circuit"
